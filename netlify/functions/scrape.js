@@ -79,6 +79,12 @@ exports.handler = async (event) => {
         console.log(`[scrape] no items returned for @${account.handle}`);
       }
 
+      // Apify returns error objects in the dataset instead of throwing when the
+      // account is private or the scrape returns no data — detect and surface it
+      if (items[0]?.error) {
+        throw new Error(items[0].errorDescription || 'No data returned');
+      }
+
       const posts = items.slice(0, 6).map(item => {
         const likes    = item.likesCount    ?? item.likes         ?? item.diggCount       ?? 0;
         const comments = item.commentsCount ?? item.comments      ?? item.commentsNumber  ?? 0;
