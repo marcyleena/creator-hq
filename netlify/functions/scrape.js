@@ -71,14 +71,35 @@ exports.handler = async (event) => {
       }
 
       const items = result.items || [];
-      const posts = items.slice(0, 6).map(item => ({
-        id: item.id || item.shortCode,
-        type: item.type === 'Video' ? 'Reel' : item.type === 'Sidecar' ? 'Carousel' : 'Static',
-        hook: item.caption ? item.caption.split('\n')[0].substring(0, 100) : '(no caption)',
-        likes: item.likesCount || 0,
-        comments: item.commentsCount || 0,
-        views: item.videoViewCount || item.videoPlayCount || 0,
-      }));
+
+      // Log the full first item so we can see the exact field names Apify returns
+      if (items.length > 0) {
+        console.log(`[scrape] first item raw fields for @${account.handle}:`, JSON.stringify(items[0], null, 2));
+      } else {
+        console.log(`[scrape] no items returned for @${account.handle}`);
+      }
+
+      const posts = items.slice(0, 6).map(item => {
+        const likes    = item.likesCount    ?? item.likes         ?? item.diggCount       ?? 0;
+        const comments = item.commentsCount ?? item.comments      ?? item.commentsNumber  ?? 0;
+        const views    = item.videoViewCount ?? item.videoPlayCount ?? item.viewCount      ?? item.playsCount ?? 0;
+        const caption  = item.caption       ?? item.text          ?? item.description     ?? item.alt ?? '';
+        const rawType  = item.type          ?? item.mediaType     ?? item.productType     ?? '';
+        const type     = /video/i.test(rawType) ? 'Reel'
+                       : /sidecar|carousel|album/i.test(rawType) ? 'Carousel'
+                       : 'Static';
+
+        console.log(`[scrape] mapped item id=${item.id || item.shortCode} type="${rawType}"->"${type}" likes=${likes} comments=${comments} captionLen=${caption.length}`);
+
+        return {
+          id:       item.id || item.shortCode,
+          type,
+          hook:     caption ? caption.split('\n')[0].substring(0, 100) : '(no caption)',
+          likes,
+          comments,
+          views,
+        };
+      });
 
       results.push({ handle: account.handle, niche: account.niche, posts });
     } catch (e) {
