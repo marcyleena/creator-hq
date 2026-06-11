@@ -33,26 +33,54 @@ exports.handler = async (event) => {
     return { statusCode: 400, body: JSON.stringify({ error: 'Missing required fields' }) };
   }
 
+  // Try an actor with the given input body, returning { ok, items, errorBody }
+  async function tryActor(actorSlug, inputBody) {
+    const url = `https://api.apify.com/v2/acts/${actorSlug}/run-sync-get-dataset-items?token=${apifyKey}&timeout=60`;
+    console.log(`[scrape] trying actor=${actorSlug} url=${url}`);
+    console.log('[scrape] request body:', JSON.stringify(inputBody));
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(inputBody),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      console.error(`[scrape] actor=${actorSlug} status=${response.status} errorBody=${errorBody}`);
+      return { ok: false, status: response.status, errorBody };
+    }
+
+    const items = await response.json();
+    console.log(`[scrape] actor=${actorSlug} success, items=${items.length}`);
+    return { ok: true, items };
+  }
+
   const results = [];
 
   for (const account of handles) {
+    console.log(`[scrape] processing handle: ${account.handle}`);
     try {
-      const response = await fetch(
-        `https://api.apify.com/v2/acts/apify~instagram-post-scraper/run-sync-get-dataset-items?token=${apifyKey}&timeout=60`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            directUrls: [`https://www.instagram.com/${account.handle}/`],
-            resultsLimit: 12,
-          })
-        }
-      );
+      // Attempt 1: apify~instagram-post-scraper with usernames input
+      const attempt1Input = { usernames: [account.handle], resultsLimit: 12 };
+      let result = await tryActor('apify~instagram-post-scraper', attempt1Input);
 
-      if (!response.ok) throw new Error(`Apify error ${response.status}`);
-      const items = await response.json();
+      // Attempt 2: fall back to apify~instagram-scraper (more widely used)
+      if (!result.ok) {
+        console.log(`[scrape] falling back to apify~instagram-scraper for ${account.handle}`);
+        const attempt2Input = { usernames: [account.handle], resultsLimit: 12 };
+        result = await tryActor('apify~instagram-scraper', attempt2Input);
+      }
 
-      const posts = (items || []).slice(0, 6).map(item => ({
+      if (!result.ok) {
+        throw new Error(
+          `Both actors failed for @${account.handle}. ` +
+          `Last error ${result.status}: ${result.errorBody}`
+        );
+      }
+
+      const items = result.items || [];
+      const posts = items.slice(0, 6).map(item => ({
         id: item.id || item.shortCode,
         type: item.type === 'Video' ? 'Reel' : item.type === 'Sidecar' ? 'Carousel' : 'Static',
         hook: item.caption ? item.caption.split('\n')[0].substring(0, 100) : '(no caption)',
@@ -63,6 +91,7 @@ exports.handler = async (event) => {
 
       results.push({ handle: account.handle, niche: account.niche, posts });
     } catch (e) {
+      console.error(`[scrape] error for ${account.handle}:`, e.message);
       results.push({ handle: account.handle, niche: account.niche, posts: [], error: e.message });
     }
   }
