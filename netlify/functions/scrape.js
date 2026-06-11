@@ -61,22 +61,13 @@ exports.handler = async (event) => {
   for (const account of handles) {
     console.log(`[scrape] processing handle: ${account.handle}`);
     try {
-      // Attempt 1: apify~instagram-post-scraper with usernames input
-      const attempt1Input = { usernames: [account.handle], resultsLimit: 12 };
-      let result = await tryActor('apify~instagram-post-scraper', attempt1Input);
-
-      // Attempt 2: fall back to apify~instagram-scraper (more widely used)
-      if (!result.ok) {
-        console.log(`[scrape] falling back to apify~instagram-scraper for ${account.handle}`);
-        const attempt2Input = { usernames: [account.handle], resultsLimit: 12 };
-        result = await tryActor('apify~instagram-scraper', attempt2Input);
-      }
+      const result = await tryActor('apify~instagram-scraper', {
+        usernames: [account.handle],
+        resultsLimit: 12,
+      });
 
       if (!result.ok) {
-        throw new Error(
-          `Both actors failed for @${account.handle}. ` +
-          `Last error ${result.status}: ${result.errorBody}`
-        );
+        throw new Error(`Apify error ${result.status}: ${result.errorBody}`);
       }
 
       const items = result.items || [];
