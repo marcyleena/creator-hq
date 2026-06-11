@@ -1,5 +1,19 @@
 import { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { callClaude } from '../utils';
+
+const mdComponents = {
+  h1: ({ children }) => <h1 style={{ fontFamily: 'Georgia, serif', fontSize: 20, fontWeight: 400, color: '#1C1A18', margin: '20px 0 8px' }}>{children}</h1>,
+  h2: ({ children }) => <h2 style={{ fontFamily: 'Georgia, serif', fontSize: 17, fontWeight: 400, color: '#1C1A18', margin: '18px 0 6px' }}>{children}</h2>,
+  h3: ({ children }) => <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1C1A18', margin: '14px 0 4px' }}>{children}</h3>,
+  p: ({ children }) => <p style={{ fontSize: 14, color: '#1C1A18', lineHeight: 1.7, margin: '0 0 10px' }}>{children}</p>,
+  ul: ({ children }) => <ul style={{ paddingLeft: 20, margin: '0 0 10px' }}>{children}</ul>,
+  ol: ({ children }) => <ol style={{ paddingLeft: 20, margin: '0 0 10px' }}>{children}</ol>,
+  li: ({ children }) => <li style={{ fontSize: 14, color: '#1C1A18', lineHeight: 1.7, marginBottom: 4 }}>{children}</li>,
+  strong: ({ children }) => <strong style={{ fontWeight: 700, color: '#1C1A18' }}>{children}</strong>,
+  em: ({ children }) => <em style={{ fontStyle: 'italic' }}>{children}</em>,
+  hr: () => <hr style={{ border: 'none', borderTop: '1px solid rgba(201,191,168,0.38)', margin: '16px 0' }} />,
+};
 
 const QUICK_FILL = [
   {
@@ -115,12 +129,7 @@ export default function StudioTab({ brand, showToast, initialPrompt }) {
               fontFamily: 'DM Sans, sans-serif',
             }}>Copy</button>
           </div>
-          <pre style={{
-            whiteSpace: 'pre-wrap', fontFamily: 'DM Sans, sans-serif',
-            fontSize: 14, color: '#1C1A18', lineHeight: 1.7, margin: 0,
-          }}>
-            {output}
-          </pre>
+          <ReactMarkdown components={mdComponents}>{output}</ReactMarkdown>
         </div>
       )}
     </div>
