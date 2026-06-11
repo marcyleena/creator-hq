@@ -218,9 +218,25 @@ export default function GrowthTab({ brand, showToast }) {
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
               }}>
                 <div>
-                  <span style={{ fontFamily: 'Georgia, serif', fontSize: 20, color: '#1C1A18' }}>{formatNumber(s.followers)}</span>
-                  <span style={{ color: '#C9BFA8', fontSize: 13, marginLeft: 6 }}>followers</span>
-                  {s.notes && <div style={{ fontSize: 13, color: '#1C1A18', marginTop: 2 }}>{s.notes}</div>}
+                  <div style={{ display: 'flex', gap: 18, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                    <span>
+                      <span style={{ fontFamily: 'Georgia, serif', fontSize: 20, color: '#1C1A18' }}>{formatNumber(s.followers)}</span>
+                      <span style={{ color: '#C9BFA8', fontSize: 13, marginLeft: 5 }}>followers</span>
+                    </span>
+                    {s.following > 0 && (
+                      <span>
+                        <span style={{ fontFamily: 'Georgia, serif', fontSize: 16, color: '#1C1A18' }}>{formatNumber(s.following)}</span>
+                        <span style={{ color: '#C9BFA8', fontSize: 13, marginLeft: 5 }}>following</span>
+                      </span>
+                    )}
+                    {s.posts > 0 && (
+                      <span>
+                        <span style={{ fontFamily: 'Georgia, serif', fontSize: 16, color: '#1C1A18' }}>{formatNumber(s.posts)}</span>
+                        <span style={{ color: '#C9BFA8', fontSize: 13, marginLeft: 5 }}>posts</span>
+                      </span>
+                    )}
+                  </div>
+                  {s.notes && <div style={{ fontSize: 13, color: '#1C1A18', marginTop: 4 }}>{s.notes}</div>}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <span style={{ fontSize: 12, color: '#C9BFA8' }}>{s.date}</span>
