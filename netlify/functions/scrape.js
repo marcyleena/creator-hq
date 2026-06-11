@@ -53,7 +53,7 @@ exports.handler = async (event) => {
 
     const items = await response.json();
     console.log(`[scrape] actor=${actorSlug} success, items=${items.length}`);
-    return { ok: true, items };
+    return { ok: true, items, actor: actorSlug };
   }
 
   const results = [];
@@ -61,22 +61,35 @@ exports.handler = async (event) => {
   for (const account of handles) {
     console.log(`[scrape] processing handle: ${account.handle}`);
     try {
-      const result = await tryActor('apify~instagram-scraper', {
-        usernames: [account.handle],
+      // Attempt 1: apify~instagram-post-scraper with singular username field
+      let result = await tryActor('apify~instagram-post-scraper', {
+        username: account.handle,
         resultsLimit: 12,
       });
 
+      // Attempt 2: apify~instagram-scraper with directUrls + resultsType
       if (!result.ok) {
-        throw new Error(`Apify error ${result.status}: ${result.errorBody}`);
+        console.log(`[scrape] attempt 1 failed (${result.status}), trying apify~instagram-scraper with directUrls`);
+        result = await tryActor('apify~instagram-scraper', {
+          directUrls: [`https://www.instagram.com/${account.handle}/`],
+          resultsType: 'posts',
+          resultsLimit: 12,
+        });
+      }
+
+      if (!result.ok) {
+        throw new Error(
+          `Both actors failed for @${account.handle}. Last error ${result.status}: ${result.errorBody}`
+        );
       }
 
       const items = result.items || [];
 
       // Log the full first item so we can see the exact field names Apify returns
       if (items.length > 0) {
-        console.log(`[scrape] first item raw fields for @${account.handle}:`, JSON.stringify(items[0], null, 2));
+        console.log(`[scrape] SUCCESS — actor that worked: ${result.actor} — first item raw fields for @${account.handle}:`, JSON.stringify(items[0], null, 2));
       } else {
-        console.log(`[scrape] no items returned for @${account.handle}`);
+        console.log(`[scrape] actor ${result.actor} returned 0 items for @${account.handle}`);
       }
 
       // Apify returns error objects in the dataset instead of throwing when the
