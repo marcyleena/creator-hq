@@ -16,6 +16,48 @@ const mdComponents = {
   hr: () => <hr style={{ border: 'none', borderTop: '1px solid rgba(201,191,168,0.38)', margin: '16px 0' }} />,
 };
 
+// Platform pill colors
+const PLATFORM_STYLES = {
+  instagram: { bg: '#e1306c18', color: '#e1306c', label: 'Instagram' },
+  tiktok:    { bg: '#00f2ea18', color: '#010101', label: 'TikTok' },
+};
+
+function PlatformTag({ platform }) {
+  const s = PLATFORM_STYLES[platform] || PLATFORM_STYLES.instagram;
+  return (
+    <span style={{
+      fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
+      background: s.bg, color: s.color,
+      letterSpacing: 0.5, textTransform: 'uppercase',
+    }}>
+      {s.label}
+    </span>
+  );
+}
+
+function PlatformToggle({ value, onChange }) {
+  return (
+    <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(201,191,168,0.38)', flexShrink: 0 }}>
+      {['instagram', 'tiktok'].map(p => (
+        <button
+          key={p}
+          onClick={() => onChange(p)}
+          style={{
+            padding: '9px 14px', border: 'none', cursor: 'pointer',
+            background: value === p ? '#1C1A18' : '#F5F0E8',
+            color: value === p ? '#fff' : '#C9BFA8',
+            fontSize: 12, fontWeight: value === p ? 700 : 400,
+            fontFamily: 'DM Sans, sans-serif',
+            textTransform: 'capitalize',
+          }}
+        >
+          {p === 'instagram' ? 'IG' : 'TT'}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function SubTabs({ tabs, active, onChange, accent }) {
   return (
     <div style={{ display: 'flex', gap: 4, marginBottom: 24, borderBottom: '1px solid rgba(201,191,168,0.38)' }}>
@@ -34,9 +76,12 @@ function SubTabs({ tabs, active, onChange, accent }) {
 
 export default function IntelTab({ brand, showToast }) {
   const [sub, setSub] = useState('Competitors');
-  const [competitors, setCompetitors] = useState(() => loadStorage(COMPETITORS_KEY, []));
+  const [competitors, setCompetitors] = useState(() =>
+    // Backfill platform field for any existing entries saved without it
+    loadStorage(COMPETITORS_KEY, []).map(c => ({ platform: 'instagram', ...c }))
+  );
   const [intel, setIntel] = useState(() => loadStorage(INTEL_KEY, null));
-  const [addForm, setAddForm] = useState({ handle: '', niche: '' });
+  const [addForm, setAddForm] = useState({ handle: '', niche: '', platform: 'instagram' });
   const [period, setPeriod] = useState('7d');
   const [loading, setLoading] = useState(false);
 
@@ -45,7 +90,7 @@ export default function IntelTab({ brand, showToast }) {
     const updated = [...competitors, { ...addForm, id: Date.now() }];
     setCompetitors(updated);
     saveStorage(COMPETITORS_KEY, updated);
-    setAddForm({ handle: '', niche: '' });
+    setAddForm({ handle: '', niche: '', platform: 'instagram' });
     showToast('Competitor added');
   };
 
@@ -59,7 +104,7 @@ export default function IntelTab({ brand, showToast }) {
     const handles = NICHE_TEMPLATES[nicheKey];
     const newOnes = handles
       .filter(h => !competitors.find(c => c.handle === h.replace('@', '')))
-      .map(h => ({ handle: h.replace('@', ''), niche: nicheKey, id: Date.now() + Math.random() }));
+      .map(h => ({ handle: h.replace('@', ''), niche: nicheKey, platform: 'instagram', id: Date.now() + Math.random() }));
     const updated = [...competitors, ...newOnes];
     setCompetitors(updated);
     saveStorage(COMPETITORS_KEY, updated);
@@ -81,15 +126,22 @@ export default function IntelTab({ brand, showToast }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Scrape failed');
 
+      const hasBothPlatforms = data.results.some(r => r.platform === 'instagram') &&
+                               data.results.some(r => r.platform === 'tiktok');
+
       const postSummary = data.results.map(r =>
-        `Account: @${r.handle} (${r.niche})\n` +
-        (r.posts || []).map(p => `  - [${p.type}] "${p.hook}" | Likes: ${p.likes}, Comments: ${p.comments}`).join('\n')
+        `Account: @${r.handle} [${(r.platform || 'instagram').toUpperCase()}]${r.niche ? ` (${r.niche})` : ''}\n` +
+        (r.posts || []).map(p => `  - [${p.type}] "${p.hook}" | Likes: ${p.likes}, Comments: ${p.comments}${p.views > 0 ? `, Views: ${p.views}` : ''}`).join('\n')
       ).join('\n\n');
+
+      const platformNote = hasBothPlatforms
+        ? '\n\nIMPORTANT: The data above comes from both Instagram and TikTok accounts. Where relevant, note any notable differences in what content styles or hook patterns seem to work differently between the two platforms.'
+        : '';
 
       const brief = await callClaude(brand.anthropicKey, [
         {
           role: 'user',
-          content: `You are a social media strategist for ${brand.name}, a ${brand.niche} creator on Instagram.\n\nHere are recent posts from competitors over the past ${period}:\n\n${postSummary}\n\nWrite a strategic weekly brief that covers:\n1. Top-performing content patterns you noticed\n2. Hook styles that are working\n3. Content gaps you can exploit\n4. 3 specific content recommendations for ${brand.name}\n\nBe specific and actionable. Focus on what ${brand.name} should create this week.`,
+          content: `You are a social media strategist for ${brand.name}, a ${brand.niche} creator.\n\nHere are recent posts from competitors over the past ${period}:\n\n${postSummary}${platformNote}\n\nWrite a strategic weekly brief that covers:\n1. Top-performing content patterns you noticed\n2. Hook styles that are working\n3. Content gaps you can exploit\n4. 3 specific content recommendations for ${brand.name}\n\nBe specific and actionable. Focus on what ${brand.name} should create this week.`,
         },
       ], 1200);
 
@@ -110,6 +162,9 @@ export default function IntelTab({ brand, showToast }) {
     }
   };
 
+  const igCount = competitors.filter(c => (c.platform || 'instagram') === 'instagram').length;
+  const ttCount = competitors.filter(c => c.platform === 'tiktok').length;
+
   return (
     <div style={{ maxWidth: 860, margin: '0 auto' }}>
       <SubTabs tabs={['Competitors', 'Run Analysis', 'Weekly Brief']} active={sub} onChange={setSub} accent={brand.accent} />
@@ -122,7 +177,7 @@ export default function IntelTab({ brand, showToast }) {
               {Object.keys(NICHE_TEMPLATES).map(n => (
                 <button key={n} onClick={() => loadTemplate(n)} style={{
                   padding: '6px 14px', borderRadius: 20, fontSize: 13, cursor: 'pointer',
-                  background: 'transparent', border: `1px solid rgba(201,191,168,0.38)`,
+                  background: 'transparent', border: '1px solid rgba(201,191,168,0.38)',
                   color: '#1C1A18', fontFamily: 'DM Sans, sans-serif',
                 }}>{n}</button>
               ))}
@@ -134,6 +189,7 @@ export default function IntelTab({ brand, showToast }) {
               <div style={{ flex: 1 }}>
                 <label style={labelStyle}>Handle (no @)</label>
                 <input value={addForm.handle} onChange={e => setAddForm(f => ({ ...f, handle: e.target.value }))}
+                  onKeyDown={e => e.key === 'Enter' && addCompetitor()}
                   style={inputStyle} placeholder="username" />
               </div>
               <div style={{ flex: 1 }}>
@@ -141,20 +197,32 @@ export default function IntelTab({ brand, showToast }) {
                 <input value={addForm.niche} onChange={e => setAddForm(f => ({ ...f, niche: e.target.value }))}
                   style={inputStyle} placeholder="e.g. fashion" />
               </div>
+              <div>
+                <label style={labelStyle}>Platform</label>
+                <PlatformToggle value={addForm.platform} onChange={p => setAddForm(f => ({ ...f, platform: p }))} />
+              </div>
               <button onClick={addCompetitor} style={btnStyle(brand.accent)}>Add</button>
             </div>
           </div>
 
           {competitors.length === 0 && <div style={emptyStyle}>No competitors yet. Add accounts to track.</div>}
+
+          {competitors.length > 0 && (
+            <div style={{ fontSize: 12, color: '#C9BFA8', marginBottom: 10 }}>
+              {igCount > 0 && `${igCount} Instagram`}{igCount > 0 && ttCount > 0 && ' · '}{ttCount > 0 && `${ttCount} TikTok`}
+            </div>
+          )}
+
           {competitors.map(c => (
             <div key={c.id} style={{
               background: '#FDFAF5', border: '1px solid rgba(201,191,168,0.38)',
               borderRadius: 10, padding: '12px 18px', marginBottom: 8,
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             }}>
-              <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <PlatformTag platform={c.platform || 'instagram'} />
                 <span style={{ fontWeight: 600, color: '#1C1A18' }}>@{c.handle}</span>
-                {c.niche && <span style={{ color: '#C9BFA8', fontSize: 13, marginLeft: 8 }}>{c.niche}</span>}
+                {c.niche && <span style={{ color: '#C9BFA8', fontSize: 13 }}>{c.niche}</span>}
               </div>
               <button onClick={() => removeCompetitor(c.id)} style={deleteBtnStyle}>Remove</button>
             </div>
@@ -181,7 +249,7 @@ export default function IntelTab({ brand, showToast }) {
               </div>
             </div>
             <p style={{ fontSize: 13, color: '#C9BFA8', marginBottom: 20 }}>
-              Scrapes {competitors.length} competitor{competitors.length !== 1 ? 's' : ''}, then Claude writes your weekly brief.
+              Scrapes {igCount > 0 ? `${igCount} Instagram` : ''}{igCount > 0 && ttCount > 0 ? ' and ' : ''}{ttCount > 0 ? `${ttCount} TikTok` : ''} account{competitors.length !== 1 ? 's' : ''}, then Claude writes your weekly brief.
             </p>
             <button onClick={runAnalysis} disabled={loading} style={{
               ...btnStyle(brand.accent), opacity: loading ? 0.65 : 1,
@@ -212,8 +280,10 @@ export default function IntelTab({ brand, showToast }) {
 
               {intel.results && intel.results.map(r => (
                 <div key={r.handle} style={{ background: '#FDFAF5', border: '1px solid rgba(201,191,168,0.38)', borderRadius: 12, padding: 20, marginBottom: 12 }}>
-                  <div style={{ fontWeight: 700, color: '#1C1A18', marginBottom: 12 }}>@{r.handle}
-                    {r.niche && <span style={{ color: '#C9BFA8', fontWeight: 400, marginLeft: 8, fontSize: 13 }}>{r.niche}</span>}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                    <PlatformTag platform={r.platform || 'instagram'} />
+                    <span style={{ fontWeight: 700, color: '#1C1A18' }}>@{r.handle}</span>
+                    {r.niche && <span style={{ color: '#C9BFA8', fontWeight: 400, fontSize: 13 }}>{r.niche}</span>}
                   </div>
                   {r.error && <div style={{ color: '#b91c1c', fontSize: 13 }}>{r.error}</div>}
                   {r.posts && r.posts.map((p, i) => (
@@ -221,7 +291,7 @@ export default function IntelTab({ brand, showToast }) {
                       borderTop: i > 0 ? '1px solid rgba(201,191,168,0.18)' : 'none',
                       paddingTop: i > 0 ? 10 : 0, marginTop: i > 0 ? 10 : 0,
                     }}>
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', marginBottom: 4 }}>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', marginBottom: 4, flexWrap: 'wrap' }}>
                         <span style={{
                           fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 12,
                           background: `${brand.accent}18`, color: brand.accent, letterSpacing: 0.5,
@@ -231,7 +301,7 @@ export default function IntelTab({ brand, showToast }) {
                       <div style={{ fontSize: 12, color: '#C9BFA8', display: 'flex', gap: 14 }}>
                         <span>{p.likes} likes</span>
                         <span>{p.comments} comments</span>
-                        {p.views > 0 && <span>{p.views} views</span>}
+                        {p.views > 0 && <span>{p.views.toLocaleString()} views</span>}
                       </div>
                     </div>
                   ))}

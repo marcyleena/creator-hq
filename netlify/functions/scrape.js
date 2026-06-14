@@ -27,16 +27,16 @@ exports.handler = async (event) => {
   }
 
   const { apifyKey, handles, period } = parsed;
-  console.log('[scrape] handles:', (handles || []).map(h => h.handle), 'period:', period);
+  console.log('[scrape] handles:', (handles || []).map(h => `${h.handle}(${h.platform || 'instagram'})`), 'period:', period);
 
   if (!apifyKey || !handles || !handles.length) {
     return { statusCode: 400, body: JSON.stringify({ error: 'Missing required fields' }) };
   }
 
-  // Try an actor with the given input body, returning { ok, items, errorBody }
+  // Try an actor with the given input body, returning { ok, items, actor, errorBody }
   async function tryActor(actorSlug, inputBody) {
     const url = `https://api.apify.com/v2/acts/${actorSlug}/run-sync-get-dataset-items?token=${apifyKey}&timeout=60`;
-    console.log(`[scrape] trying actor=${actorSlug} url=${url}`);
+    console.log(`[scrape] trying actor=${actorSlug}`);
     console.log('[scrape] request body:', JSON.stringify(inputBody));
 
     const response = await fetch(url, {
@@ -59,59 +59,107 @@ exports.handler = async (event) => {
   const results = [];
 
   for (const account of handles) {
-    console.log(`[scrape] processing handle: ${account.handle}`);
+    const platform = (account.platform || 'instagram').toLowerCase();
+    console.log(`[scrape] processing @${account.handle} platform=${platform}`);
+
     try {
-      const result = await tryActor('apify~instagram-scraper', {
-        directUrls: [`https://www.instagram.com/${account.handle}/`],
-        resultsType: 'posts',
-        resultsLimit: 12,
-      });
+      let result;
 
-      if (!result.ok) {
-        throw new Error(`Apify error ${result.status}: ${result.errorBody}`);
-      }
+      if (platform === 'tiktok') {
+        // TikTok branch
+        result = await tryActor('clockworks~tiktok-scraper', {
+          profiles: [account.handle],
+          resultsPerPage: 12,
+        });
 
-      const items = result.items || [];
+        if (!result.ok) {
+          throw new Error(`TikTok scraper error ${result.status}: ${result.errorBody}`);
+        }
 
-      // Log the full first item so we can see the exact field names Apify returns
-      if (items.length > 0) {
-        console.log(`[scrape] SUCCESS — actor that worked: ${result.actor} — first item raw fields for @${account.handle}:`, JSON.stringify(items[0], null, 2));
+        const items = result.items || [];
+
+        if (items.length > 0) {
+          console.log(`[scrape] TikTok first item for @${account.handle}:`, JSON.stringify(items[0], null, 2));
+        } else {
+          console.log(`[scrape] TikTok returned 0 items for @${account.handle}`);
+        }
+
+        if (items[0]?.error) {
+          throw new Error(items[0].errorDescription || 'No TikTok data returned');
+        }
+
+        const posts = items.slice(0, 6).map(item => {
+          const likes    = item.diggCount    ?? item.likes         ?? 0;
+          const comments = item.commentCount ?? item.commentsCount ?? 0;
+          const views    = item.playCount    ?? item.viewCount     ?? 0;
+          const text     = item.text         ?? item.caption       ?? '';
+
+          console.log(`[scrape] TikTok mapped id=${item.id} likes=${likes} comments=${comments} views=${views} textLen=${text.length}`);
+
+          return {
+            id:       item.id,
+            type:     'Video',
+            hook:     text ? text.split('\n')[0].substring(0, 100) : '(no caption)',
+            likes,
+            comments,
+            views,
+          };
+        });
+
+        results.push({ handle: account.handle, niche: account.niche, platform: 'tiktok', posts });
+
       } else {
-        console.log(`[scrape] actor ${result.actor} returned 0 items for @${account.handle}`);
+        // Instagram branch (default)
+        result = await tryActor('apify~instagram-scraper', {
+          directUrls: [`https://www.instagram.com/${account.handle}/`],
+          resultsType: 'posts',
+          resultsLimit: 12,
+        });
+
+        if (!result.ok) {
+          throw new Error(`Instagram scraper error ${result.status}: ${result.errorBody}`);
+        }
+
+        const items = result.items || [];
+
+        if (items.length > 0) {
+          console.log(`[scrape] Instagram first item for @${account.handle}:`, JSON.stringify(items[0], null, 2));
+        } else {
+          console.log(`[scrape] Instagram returned 0 items for @${account.handle}`);
+        }
+
+        if (items[0]?.error) {
+          throw new Error(items[0].errorDescription || 'No Instagram data returned');
+        }
+
+        const posts = items.slice(0, 6).map(item => {
+          const likes    = item.likesCount    ?? item.likes        ?? item.diggCount      ?? 0;
+          const comments = item.commentsCount ?? item.comments     ?? item.commentsNumber ?? 0;
+          const views    = item.videoViewCount ?? item.videoPlayCount ?? item.viewCount   ?? item.playsCount ?? 0;
+          const caption  = item.caption       ?? item.text         ?? item.description   ?? item.alt ?? '';
+          const rawType  = item.type          ?? item.mediaType    ?? item.productType   ?? '';
+          const type     = /video/i.test(rawType) ? 'Reel'
+                         : /sidecar|carousel|album/i.test(rawType) ? 'Carousel'
+                         : 'Static';
+
+          console.log(`[scrape] Instagram mapped id=${item.id || item.shortCode} type="${rawType}"->"${type}" likes=${likes} comments=${comments} captionLen=${caption.length}`);
+
+          return {
+            id:       item.id || item.shortCode,
+            type,
+            hook:     caption ? caption.split('\n')[0].substring(0, 100) : '(no caption)',
+            likes,
+            comments,
+            views,
+          };
+        });
+
+        results.push({ handle: account.handle, niche: account.niche, platform: 'instagram', posts });
       }
 
-      // Apify returns error objects in the dataset instead of throwing when the
-      // account is private or the scrape returns no data — detect and surface it
-      if (items[0]?.error) {
-        throw new Error(items[0].errorDescription || 'No data returned');
-      }
-
-      const posts = items.slice(0, 6).map(item => {
-        const likes    = item.likesCount    ?? item.likes         ?? item.diggCount       ?? 0;
-        const comments = item.commentsCount ?? item.comments      ?? item.commentsNumber  ?? 0;
-        const views    = item.videoViewCount ?? item.videoPlayCount ?? item.viewCount      ?? item.playsCount ?? 0;
-        const caption  = item.caption       ?? item.text          ?? item.description     ?? item.alt ?? '';
-        const rawType  = item.type          ?? item.mediaType     ?? item.productType     ?? '';
-        const type     = /video/i.test(rawType) ? 'Reel'
-                       : /sidecar|carousel|album/i.test(rawType) ? 'Carousel'
-                       : 'Static';
-
-        console.log(`[scrape] mapped item id=${item.id || item.shortCode} type="${rawType}"->"${type}" likes=${likes} comments=${comments} captionLen=${caption.length}`);
-
-        return {
-          id:       item.id || item.shortCode,
-          type,
-          hook:     caption ? caption.split('\n')[0].substring(0, 100) : '(no caption)',
-          likes,
-          comments,
-          views,
-        };
-      });
-
-      results.push({ handle: account.handle, niche: account.niche, posts });
     } catch (e) {
-      console.error(`[scrape] error for ${account.handle}:`, e.message);
-      results.push({ handle: account.handle, niche: account.niche, posts: [], error: e.message });
+      console.error(`[scrape] error for @${account.handle}:`, e.message);
+      results.push({ handle: account.handle, niche: account.niche, platform, posts: [], error: e.message });
     }
   }
 
