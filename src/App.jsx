@@ -135,7 +135,7 @@ export default function App() {
       {/* Main */}
       <main style={{ padding: '32px 28px', maxWidth: 1000, margin: '0 auto' }}>
         {activeTab === 'Home' && (
-          <HomeTab brand={brand} onNavigate={handleNavigate} />
+          <HomeTab brand={brand} onNavigate={handleNavigate} showToast={showToast} />
         )}
         {activeTab === 'Growth' && (
           <GrowthTab brand={brand} showToast={showToast} />
