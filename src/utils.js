@@ -7,6 +7,9 @@ export const INTEL_KEY = 'creator_hq_intel';
 export const CONTENT_PLAN_KEY = 'creator_hq_content_plan';
 export const CONTENT_PERF_KEY = 'creator_hq_content_perf';
 export const PROFILE_KEY = 'creator_hq_profile';
+export const LIBRARY_KEY = 'creator_hq_library';
+
+export const LIBRARY_CATEGORIES = ['Caption', 'Hook', 'Image Prompt', 'Bio', 'Brief Insight', 'Other'];
 
 export function loadStorage(key, fallback) {
   try {

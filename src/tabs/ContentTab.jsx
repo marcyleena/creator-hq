@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { loadStorage, saveStorage, CONTENT_PLAN_KEY, CONTENT_PERF_KEY, engagementScore, callClaude } from '../utils';
+import SaveToLibrary from '../SaveToLibrary';
 
 const mdComponents = {
   h1: ({ children }) => <h1 style={{ fontFamily: 'Georgia, serif', fontSize: 20, fontWeight: 400, color: '#1C1A18', margin: '20px 0 8px' }}>{children}</h1>,
@@ -299,6 +300,9 @@ export default function ContentTab({ brand, showToast, onNavigateToStudio }) {
           </div>
           {regenResult && (
             <div style={{ background: '#FDFAF5', border: '1px solid rgba(201,191,168,0.38)', borderRadius: 14, padding: 24 }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+                <SaveToLibrary content={regenResult} accent={brand.accent} onSaved={() => showToast('Saved to Library')} />
+              </div>
               <ReactMarkdown components={mdComponents}>{regenResult}</ReactMarkdown>
             </div>
           )}

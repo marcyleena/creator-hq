@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { loadStorage, saveStorage, COMPETITORS_KEY, INTEL_KEY, NICHE_TEMPLATES, callClaude } from '../utils';
+import SaveToLibrary from '../SaveToLibrary';
 
 const mdComponents = {
   h1: ({ children }) => <h1 style={{ fontFamily: 'Georgia, serif', fontSize: 20, fontWeight: 400, color: '#1C1A18', margin: '20px 0 8px' }}>{children}</h1>,
@@ -202,6 +203,7 @@ export default function IntelTab({ brand, showToast }) {
                   <h3 style={{ fontFamily: 'Georgia, serif', fontSize: 20, color: '#1C1A18', margin: '0 0 4px', fontWeight: 400 }}>Weekly Brief</h3>
                   <div style={{ fontSize: 13, color: '#C9BFA8' }}>{intel.date} &middot; {intel.period} window</div>
                 </div>
+                <SaveToLibrary content={intel.brief} accent={brand.accent} onSaved={() => showToast('Saved to Library')} />
               </div>
 
               <div style={{ background: '#FDFAF5', border: '1px solid rgba(201,191,168,0.38)', borderRadius: 14, padding: 24, marginBottom: 24 }}>

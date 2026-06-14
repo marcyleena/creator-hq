@@ -8,8 +8,9 @@ import GrowthTab from './tabs/GrowthTab';
 import IntelTab from './tabs/IntelTab';
 import ContentTab from './tabs/ContentTab';
 import StudioTab from './tabs/StudioTab';
+import LibraryTab from './tabs/LibraryTab';
 
-const TABS = ['Home', 'Growth', 'Intel', 'Content', 'Studio'];
+const TABS = ['Home', 'Growth', 'Intel', 'Content', 'Studio', 'Library'];
 
 export default function App() {
   const [brand, setBrand] = useState(() => loadStorage(STORAGE_KEY, null));
@@ -134,6 +135,9 @@ export default function App() {
             showToast={showToast}
             initialPrompt={studioPrompt}
           />
+        )}
+        {activeTab === 'Library' && (
+          <LibraryTab brand={brand} showToast={showToast} />
         )}
       </main>
 

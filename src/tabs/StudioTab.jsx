@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { callClaude } from '../utils';
+import SaveToLibrary from '../SaveToLibrary';
 
 const mdComponents = {
   h1: ({ children }) => <h1 style={{ fontFamily: 'Georgia, serif', fontSize: 20, fontWeight: 400, color: '#1C1A18', margin: '20px 0 8px' }}>{children}</h1>,
@@ -122,12 +123,15 @@ export default function StudioTab({ brand, showToast, initialPrompt }) {
         <div style={{ background: '#FDFAF5', border: '1px solid rgba(201,191,168,0.38)', borderRadius: 14, padding: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: '#1C1A18' }}>Output</span>
-            <button onClick={copy} style={{
-              padding: '6px 14px', background: 'transparent',
-              border: '1px solid rgba(201,191,168,0.38)', borderRadius: 6,
-              fontSize: 12, cursor: 'pointer', color: '#1C1A18',
-              fontFamily: 'DM Sans, sans-serif',
-            }}>Copy</button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <SaveToLibrary content={output} accent={brand.accent} onSaved={() => showToast('Saved to Library')} />
+              <button onClick={copy} style={{
+                padding: '6px 14px', background: 'transparent',
+                border: '1px solid rgba(201,191,168,0.38)', borderRadius: 6,
+                fontSize: 12, cursor: 'pointer', color: '#1C1A18',
+                fontFamily: 'DM Sans, sans-serif',
+              }}>Copy</button>
+            </div>
           </div>
           <ReactMarkdown components={mdComponents}>{output}</ReactMarkdown>
         </div>
