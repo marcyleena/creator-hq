@@ -1,4 +1,4 @@
-import { loadStorage, SNAPSHOTS_KEY, formatNumber } from '../utils';
+import { loadStorage, SNAPSHOTS_KEY, ALERTS_KEY, formatNumber } from '../utils';
 
 const ACTIONS = [
   { label: 'Log snapshot', tab: 'Growth', sub: 'Snapshots' },
@@ -9,10 +9,18 @@ const ACTIONS = [
   { label: 'Develop persona', tab: 'Studio', prompt: 'Help me develop a detailed persona and backstory for my virtual influencer.' },
 ];
 
+const ALERT_STYLES = {
+  spike:        { bg: null,       label: 'Engagement Spike' },
+  format_shift: { bg: '#4f6d8a18', color: '#4f6d8a', label: 'Format Shift' },
+  reactivated:  { bg: 'rgba(201,191,168,0.18)', color: '#C9BFA8', label: 'Reactivated' },
+};
+
 export default function HomeTab({ brand, onNavigate }) {
   const snapshots = loadStorage(SNAPSHOTS_KEY, []);
+  const alerts = loadStorage(ALERTS_KEY, []);
   const recent = snapshots.slice(-3).reverse();
   const latest = snapshots[snapshots.length - 1];
+  const recentAlerts = alerts.slice(0, 3);
 
   return (
     <div style={{ maxWidth: 860, margin: '0 auto' }}>
@@ -66,6 +74,45 @@ export default function HomeTab({ brand, onNavigate }) {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Trend Alerts */}
+      <div style={{ marginBottom: 28 }}>
+        <h3 style={{ fontFamily: 'Georgia, serif', fontSize: 16, color: '#1C1A18', margin: '0 0 14px', fontWeight: 400 }}>
+          Trend Alerts
+        </h3>
+        {recentAlerts.length === 0 ? (
+          <div style={emptyStyle}>
+            No new trends detected since your last check. Run analysis again next week to keep this updated.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {recentAlerts.map(alert => {
+              const style = ALERT_STYLES[alert.type] || ALERT_STYLES.reactivated;
+              const tagBg = style.bg || `${brand.accent}18`;
+              const tagColor = style.color || brand.accent;
+              return (
+                <div key={alert.id} style={{
+                  background: '#FDFAF5', border: '1px solid rgba(201,191,168,0.38)',
+                  borderRadius: 10, padding: '14px 18px',
+                  display: 'flex', gap: 14, alignItems: 'flex-start',
+                }}>
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 20,
+                    background: tagBg, color: tagColor,
+                    letterSpacing: 0.5, textTransform: 'uppercase', flexShrink: 0, marginTop: 2,
+                  }}>
+                    {style.label}
+                  </span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, color: '#1C1A18', lineHeight: 1.5 }}>{alert.message}</div>
+                    <div style={{ fontSize: 12, color: '#C9BFA8', marginTop: 4 }}>{alert.date}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Recent snapshots */}

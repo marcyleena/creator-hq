@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { loadStorage, saveStorage, STORAGE_KEY } from './utils';
+import { loadStorage, saveStorage, STORAGE_KEY, ALERTS_KEY, ALERTS_SEEN_KEY } from './utils';
 import Onboarding from './Onboarding';
 import Settings from './Settings';
 import Toast from './Toast';
@@ -12,12 +12,19 @@ import LibraryTab from './tabs/LibraryTab';
 
 const TABS = ['Home', 'Growth', 'Intel', 'Content', 'Studio', 'Library'];
 
+function hasUnread() {
+  const seenAt = loadStorage(ALERTS_SEEN_KEY, 0);
+  const alerts = loadStorage(ALERTS_KEY, []);
+  return alerts.some(a => (a.timestamp || 0) > seenAt);
+}
+
 export default function App() {
   const [brand, setBrand] = useState(() => loadStorage(STORAGE_KEY, null));
   const [activeTab, setActiveTab] = useState('Home');
   const [showSettings, setShowSettings] = useState(false);
   const [toast, setToast] = useState(null);
   const [studioPrompt, setStudioPrompt] = useState('');
+  const [unreadAlerts, setUnreadAlerts] = useState(false);
 
   const showToast = useCallback((message, type = 'success') => {
     setToast({ message, type, key: Date.now() });
@@ -33,13 +40,24 @@ export default function App() {
     showToast('Settings saved');
   };
 
-  // Navigation from Home quick actions or Content "Build this"
   const handleNavigate = (action) => {
     if (action.tab === 'Studio' && action.prompt) {
       setStudioPrompt(action.prompt);
     }
-    setActiveTab(action.tab);
+    handleTabChange(action.tab);
   };
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    if (tab === 'Home') {
+      saveStorage(ALERTS_SEEN_KEY, Date.now());
+      setUnreadAlerts(false);
+    }
+  };
+
+  const handleAlertsGenerated = useCallback(() => {
+    setUnreadAlerts(true);
+  }, []);
 
   if (!brand) {
     return <Onboarding onComplete={handleOnboardingComplete} />;
@@ -79,7 +97,7 @@ export default function App() {
 
         <nav style={{ display: 'flex', gap: 2, flex: 1 }}>
           {TABS.map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)} style={{
+            <button key={tab} onClick={() => handleTabChange(tab)} style={{
               padding: '6px 14px',
               background: 'none',
               border: 'none',
@@ -91,8 +109,16 @@ export default function App() {
               fontFamily: 'DM Sans, sans-serif',
               height: 56,
               transition: 'color 0.15s',
+              position: 'relative',
             }}>
               {tab}
+              {tab === 'Home' && unreadAlerts && (
+                <span style={{
+                  position: 'absolute', top: 10, right: 4,
+                  width: 6, height: 6, borderRadius: '50%',
+                  background: accent, display: 'block',
+                }} />
+              )}
             </button>
           ))}
         </nav>
@@ -115,7 +141,7 @@ export default function App() {
           <GrowthTab brand={brand} showToast={showToast} />
         )}
         {activeTab === 'Intel' && (
-          <IntelTab brand={brand} showToast={showToast} />
+          <IntelTab brand={brand} showToast={showToast} onAlertsGenerated={handleAlertsGenerated} />
         )}
         {activeTab === 'Content' && (
           <ContentTab

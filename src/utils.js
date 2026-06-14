@@ -8,6 +8,9 @@ export const CONTENT_PLAN_KEY = 'creator_hq_content_plan';
 export const CONTENT_PERF_KEY = 'creator_hq_content_perf';
 export const PROFILE_KEY = 'creator_hq_profile';
 export const LIBRARY_KEY = 'creator_hq_library';
+export const SCRAPE_HISTORY_KEY = 'creator_hq_scrape_history';
+export const ALERTS_KEY = 'creator_hq_alerts';
+export const ALERTS_SEEN_KEY = 'creator_hq_alerts_seen_at';
 
 export const LIBRARY_CATEGORIES = ['Caption', 'Hook', 'Image Prompt', 'Bio', 'Brief Insight', 'Other'];
 
@@ -74,6 +77,89 @@ export const NICHE_TEMPLATES = {
   virtual: ['@lilmiquela', '@imma.gram', '@noonoouri'],
   digital: ['@aiartists.org', '@refikanadol', '@beeple_crap'],
 };
+
+export function detectTrends(prev, next) {
+  const alerts = [];
+  const now = new Date().toLocaleDateString();
+  const ts = Date.now();
+
+  const prevMap = {};
+  for (const acc of (prev?.accounts || [])) prevMap[acc.handle] = acc;
+
+  const avgEngagement = (posts) => {
+    if (!posts || !posts.length) return 0;
+    return posts.reduce((sum, p) => sum + (p.likes || 0) + (p.comments || 0), 0) / posts.length;
+  };
+
+  const topFormat = (posts) => {
+    if (!posts || !posts.length) return null;
+    return posts.reduce((best, p) =>
+      ((p.likes || 0) + (p.comments || 0)) > ((best.likes || 0) + (best.comments || 0)) ? p : best
+    , posts[0]).type || null;
+  };
+
+  const formatShiftHandles = {};
+
+  for (const acc of (next?.accounts || [])) {
+    const prevAcc = prevMap[acc.handle];
+    const posts = acc.posts || [];
+    const prevPosts = prevAcc?.posts || [];
+
+    // Reactivated: had 0 posts before, has posts now
+    if (prevAcc && prevPosts.length === 0 && posts.length > 0) {
+      alerts.push({
+        id: `reactivated_${acc.handle}_${ts}`,
+        type: 'reactivated',
+        message: `@${acc.handle} is posting again after going quiet — worth checking what they've been creating.`,
+        date: now,
+        timestamp: ts,
+        accountHandle: acc.handle,
+      });
+      continue;
+    }
+
+    // Engagement spike: avg engagement up >50%
+    if (prevAcc && posts.length > 0 && prevPosts.length > 0) {
+      const prevAvg = avgEngagement(prevPosts);
+      const newAvg = avgEngagement(posts);
+      if (prevAvg > 0 && newAvg / prevAvg > 1.5) {
+        const pct = Math.round((newAvg / prevAvg - 1) * 100);
+        alerts.push({
+          id: `spike_${acc.handle}_${ts}`,
+          type: 'spike',
+          message: `@${acc.handle}'s engagement jumped ${pct}% since your last check — worth seeing what they posted.`,
+          date: now,
+          timestamp: ts,
+          accountHandle: acc.handle,
+        });
+      }
+
+      // Track format shifts for cross-account analysis
+      const prevFmt = topFormat(prevPosts);
+      const newFmt = topFormat(posts);
+      if (newFmt && prevFmt && newFmt !== prevFmt) {
+        if (!formatShiftHandles[newFmt]) formatShiftHandles[newFmt] = [];
+        formatShiftHandles[newFmt].push(acc.handle);
+      }
+    }
+  }
+
+  // Format shift: 3+ accounts shifted to same new top format
+  for (const [fmt, handles] of Object.entries(formatShiftHandles)) {
+    if (handles.length >= 3) {
+      alerts.push({
+        id: `format_shift_${fmt}_${ts}`,
+        type: 'format_shift',
+        message: `${fmt}s are now the top format across ${handles.length} of your competitors — a trend worth riding.`,
+        date: now,
+        timestamp: ts,
+        accountHandle: null,
+      });
+    }
+  }
+
+  return alerts;
+}
 
 export const ACCENT_PRESETS = [
   { label: 'Rose', value: '#d47dbc' },

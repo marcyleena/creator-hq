@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { loadStorage, saveStorage, COMPETITORS_KEY, INTEL_KEY, NICHE_TEMPLATES, callClaude } from '../utils';
+import { loadStorage, saveStorage, COMPETITORS_KEY, INTEL_KEY, SCRAPE_HISTORY_KEY, ALERTS_KEY, NICHE_TEMPLATES, callClaude, detectTrends } from '../utils';
 import SaveToLibrary from '../SaveToLibrary';
 
 const mdComponents = {
@@ -74,7 +74,7 @@ function SubTabs({ tabs, active, onChange, accent }) {
   );
 }
 
-export default function IntelTab({ brand, showToast }) {
+export default function IntelTab({ brand, showToast, onAlertsGenerated }) {
   const [sub, setSub] = useState('Competitors');
   const [competitors, setCompetitors] = useState(() =>
     // Backfill platform field for any existing entries saved without it
@@ -153,6 +153,25 @@ export default function IntelTab({ brand, showToast }) {
       };
       setIntel(result);
       saveStorage(INTEL_KEY, result);
+
+      // Save scrape history (keep last 8 entries)
+      const newEntry = { date: result.date, accounts: data.results.map(r => ({ handle: r.handle, platform: r.platform, niche: r.niche, posts: r.posts || [] })) };
+      const history = loadStorage(SCRAPE_HISTORY_KEY, []);
+      const updatedHistory = [...history, newEntry].slice(-8);
+      saveStorage(SCRAPE_HISTORY_KEY, updatedHistory);
+
+      // Detect trends if we have a previous scrape to compare
+      if (updatedHistory.length >= 2) {
+        const prev = updatedHistory[updatedHistory.length - 2];
+        const curr = updatedHistory[updatedHistory.length - 1];
+        const newAlerts = detectTrends(prev, curr);
+        if (newAlerts.length > 0) {
+          const existingAlerts = loadStorage(ALERTS_KEY, []);
+          saveStorage(ALERTS_KEY, [...newAlerts, ...existingAlerts].slice(0, 20));
+          onAlertsGenerated?.(newAlerts.length);
+        }
+      }
+
       showToast('Analysis complete');
     } catch (e) {
       showToast(e.message, 'error');
